@@ -5,7 +5,7 @@
 
 - 比賽頁面：https://www.kaggle.com/competitions/brain-to-text-25
 - 官方基準程式：https://github.com/Neuroprosthetics-Lab/nejm-brain-to-text
-- 原 notebook：（請填入 Kaggle 連結與原作者，並確認授權條款）
+- 原 (https://www.kaggle.com/code/quannguyn12/no-phonemes)）
 
 ## 復現計畫
 
