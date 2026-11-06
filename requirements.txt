@@ -1,0 +1,12 @@
+# 目前階段（設定、實驗紀錄、WER）只需要這兩個
+pyyaml>=6.0
+numpy>=1.24
+
+# 之後做模型、訓練、推論時再安裝：
+# torch            依顯示卡的 CUDA 版本，到 https://pytorch.org 選擇安裝指令
+# h5py             讀取腦訊號資料
+# pandas
+# tqdm
+# transformers     GPT-2
+# pyspellchecker   拼字檢查
+# pytest           執行測試（選用）

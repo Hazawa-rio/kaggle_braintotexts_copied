@@ -1,0 +1,23 @@
+# 資料、模型檔、實驗輸出：檔案很大，不上傳
+data/
+checkpoints/
+runs/
+outputs/
+
+# 實驗總表要上傳（檔案小，是重要紀錄）
+!experiments/all_runs.csv
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# 環境與編輯器
+.venv/
+venv/
+.env
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
