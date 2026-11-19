@@ -34,6 +34,10 @@ model:
   n_heads: 8               # 注意力頭數（每個頭 512 ÷ 8 = 64 維）
   dropout: 0.15            # 訓練時；推論時固定為 0
   vocab_size: 36           # 字母表大小（由 CharTokenizer 決定，不要手動改）
+  # [新增] Transformer 用哪一個版本：
+  #   pytorch：PyTorch 內建（原 notebook 的寫法，現在就能跑）
+  #   mine：   src/model/my_transformer.py 裡你自己寫的版本
+  transformer_impl: pytorch
 
 # -----------------------------------------------------------------------------
 # 訓練（原 notebook：Config 類別）
@@ -51,6 +55,8 @@ train:
   # v0 保留原寫法；v1 改成 false，改用實際步數計算
   lr_steps_per_epoch_assumed: 1000
   use_assumed_lr_steps: true
+  # [新增] 只用前幾句訓練和驗證（null = 全部）；小規模試跑時用，例如 --set train.max_trials=100
+  max_trials: null
 
 # -----------------------------------------------------------------------------
 # 損失權重（原 notebook：Config 類別）
