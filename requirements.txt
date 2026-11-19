@@ -1,12 +1,17 @@
-# 目前階段（設定、實驗紀錄、WER）只需要這兩個
+# 設定、實驗紀錄、WER
 pyyaml>=6.0
 numpy>=1.24
 
-# 之後做模型、訓練、推論時再安裝：
-# torch            依顯示卡的 CUDA 版本，到 https://pytorch.org 選擇安裝指令
-# h5py             讀取腦訊號資料
-# pandas
-# tqdm
-# transformers     GPT-2
-# pyspellchecker   拼字檢查
-# pytest           執行測試（選用）
+# 模型與訓練
+# PyTorch 請依環境選擇安裝指令（不要直接用這個檔案裝 torch）：
+#   沒有 GPU（例如 Codespaces）：pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   有 NVIDIA GPU：到 https://pytorch.org 依 CUDA 版本選擇
+h5py>=3.8          # 讀取腦訊號資料
+tqdm>=4.60         # 進度條
+
+# 推論的後處理
+transformers>=4.30 # GPT-2
+pyspellchecker>=0.7
+
+# 選用
+# pytest
