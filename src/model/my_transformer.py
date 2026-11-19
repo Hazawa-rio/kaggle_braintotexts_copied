@@ -97,7 +97,30 @@ def scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, trainin
           .masked_fill(條件, float('-inf'))、torch.softmax(x, dim=-1)、
           判斷是不是布林值：attn_mask.dtype == torch.bool
     """
-    raise NotImplementedError('練習 1：scaled_dot_product_attention 尚未完成')
+        # Step 1：內積（q 和每個 k 有多像）
+    scores = q @ k.transpose(-2, -1)
+
+    # Step 2：除以 √d
+    d = q.size(-1)
+    scores = scores / math.sqrt(d)
+
+    # 遮罩（有給的話才做）
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            scores = scores.masked_fill(attn_mask, float('-inf'))
+        else:
+            scores = scores + attn_mask
+
+    # Step 3：softmax，變成加總為 1 的權重
+    weights = torch.softmax(scores, dim=-1)
+
+    # dropout（只在訓練時有作用）
+    dropped = F.dropout(weights, p=dropout_p, training=training)
+
+    # Step 4：用權重混合 v
+    out = dropped @ v
+
+    return out, weights
 
 
 # =============================================================================
