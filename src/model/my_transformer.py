@@ -190,7 +190,57 @@ class MyMultiheadAttention(nn.Module):
              提示：.transpose(1, 2).reshape(B, L, D)
           6. 通過 self.out_proj
         """
-        raise NotImplementedError('練習 2：MyMultiheadAttention.forward 尚未完成')
+        B, L, D = query.shape          # 批次、查詢長度、寬度
+        S = key.size(1)                # 鍵的長度
+        H = self.num_heads             # 頭數
+        d = self.head_dim              # 每個頭的寬度 = D / H
+
+        # ① 投影：從疊在一起的大矩陣切出 W_q、W_k、W_v，分別算出 q、k、v
+        W_q = self.in_proj_weight[0:D]
+        W_k = self.in_proj_weight[D:2 * D]
+        W_v = self.in_proj_weight[2 * D:3 * D]
+        b_q = self.in_proj_bias[0:D]
+        b_k = self.in_proj_bias[D:2 * D]
+        b_v = self.in_proj_bias[2 * D:3 * D]
+        q = F.linear(query, W_q, b_q)  # (B, L, D)
+        k = F.linear(key, W_k, b_k)    # (B, S, D)
+        v = F.linear(value, W_v, b_v)  # (B, S, D)
+
+        # ② 切成多個頭：(B, L, D) → (B, L, H, d) → (B, H, L, d)
+        q = q.view(B, L, H, d).transpose(1, 2)
+        k = k.view(B, S, H, d).transpose(1, 2)
+        v = v.view(B, S, H, d).transpose(1, 2)
+
+        # ③ 合併兩種遮罩，統一轉成浮點格式（能看 = 0，不能看 = -inf）
+        mask = None
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                mask = torch.zeros(L, S, device=query.device, dtype=query.dtype)
+                mask = mask.masked_fill(attn_mask, float('-inf'))
+            else:
+                mask = attn_mask
+        if key_padding_mask is not None:
+            pad = torch.zeros(B, 1, 1, S, device=query.device, dtype=query.dtype)
+            pad = pad.masked_fill(key_padding_mask.view(B, 1, 1, S), float('-inf'))
+            if mask is None:
+                mask = pad
+            else:
+                mask = mask + pad
+
+        # ④ 每個頭各自算注意力（直接用練習 1 的函式）
+        out, weights = scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, dropout_p=self.dropout, training=self.training)
+        # out: (B, H, L, d)    weights: (B, H, L, S)
+
+        # ⑤ 合併頭：(B, H, L, d) → (B, L, H, d) → (B, L, D)
+        out = out.transpose(1, 2).reshape(B, L, D)
+
+        # ⑥ 輸出投影
+        out = self.out_proj(out)
+
+        if need_weights:
+            return out, weights.mean(dim=1)   # 8 個頭的權重取平均 → (B, L, S)
+        return out, None
 
 
 # =============================================================================
