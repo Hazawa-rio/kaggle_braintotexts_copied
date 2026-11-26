@@ -97,7 +97,30 @@ def scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, trainin
           .masked_fill(條件, float('-inf'))、torch.softmax(x, dim=-1)、
           判斷是不是布林值：attn_mask.dtype == torch.bool
     """
-    raise NotImplementedError('練習 1：scaled_dot_product_attention 尚未完成')
+        # Step 1：內積（q 和每個 k 有多像）
+    scores = q @ k.transpose(-2, -1)
+
+    # Step 2：除以 √d
+    d = q.size(-1)
+    scores = scores / math.sqrt(d)
+
+    # 遮罩（有給的話才做）
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            scores = scores.masked_fill(attn_mask, float('-inf'))
+        else:
+            scores = scores + attn_mask
+
+    # Step 3：softmax，變成加總為 1 的權重
+    weights = torch.softmax(scores, dim=-1)
+
+    # dropout（只在訓練時有作用）
+    dropped = F.dropout(weights, p=dropout_p, training=training)
+
+    # Step 4：用權重混合 v
+    out = dropped @ v
+
+    return out, weights
 
 
 # =============================================================================
@@ -167,7 +190,57 @@ class MyMultiheadAttention(nn.Module):
              提示：.transpose(1, 2).reshape(B, L, D)
           6. 通過 self.out_proj
         """
-        raise NotImplementedError('練習 2：MyMultiheadAttention.forward 尚未完成')
+        B, L, D = query.shape          # 批次、查詢長度、寬度
+        S = key.size(1)                # 鍵的長度
+        H = self.num_heads             # 頭數
+        d = self.head_dim              # 每個頭的寬度 = D / H
+
+        # ① 投影：從疊在一起的大矩陣切出 W_q、W_k、W_v，分別算出 q、k、v
+        W_q = self.in_proj_weight[0:D]
+        W_k = self.in_proj_weight[D:2 * D]
+        W_v = self.in_proj_weight[2 * D:3 * D]
+        b_q = self.in_proj_bias[0:D]
+        b_k = self.in_proj_bias[D:2 * D]
+        b_v = self.in_proj_bias[2 * D:3 * D]
+        q = F.linear(query, W_q, b_q)  # (B, L, D)
+        k = F.linear(key, W_k, b_k)    # (B, S, D)
+        v = F.linear(value, W_v, b_v)  # (B, S, D)
+
+        # ② 切成多個頭：(B, L, D) → (B, L, H, d) → (B, H, L, d)
+        q = q.view(B, L, H, d).transpose(1, 2)
+        k = k.view(B, S, H, d).transpose(1, 2)
+        v = v.view(B, S, H, d).transpose(1, 2)
+
+        # ③ 合併兩種遮罩，統一轉成浮點格式（能看 = 0，不能看 = -inf）
+        mask = None
+        if attn_mask is not None:
+            if attn_mask.dtype == torch.bool:
+                mask = torch.zeros(L, S, device=query.device, dtype=query.dtype)
+                mask = mask.masked_fill(attn_mask, float('-inf'))
+            else:
+                mask = attn_mask
+        if key_padding_mask is not None:
+            pad = torch.zeros(B, 1, 1, S, device=query.device, dtype=query.dtype)
+            pad = pad.masked_fill(key_padding_mask.view(B, 1, 1, S), float('-inf'))
+            if mask is None:
+                mask = pad
+            else:
+                mask = mask + pad
+
+        # ④ 每個頭各自算注意力（直接用練習 1 的函式）
+        out, weights = scaled_dot_product_attention(
+            q, k, v, attn_mask=mask, dropout_p=self.dropout, training=self.training)
+        # out: (B, H, L, d)    weights: (B, H, L, S)
+
+        # ⑤ 合併頭：(B, H, L, d) → (B, L, H, d) → (B, L, D)
+        out = out.transpose(1, 2).reshape(B, L, D)
+
+        # ⑥ 輸出投影
+        out = self.out_proj(out)
+
+        if need_weights:
+            return out, weights.mean(dim=1)   # 8 個頭的權重取平均 → (B, L, S)
+        return out, None
 
 
 # =============================================================================
@@ -217,7 +290,20 @@ class MyTransformerEncoderLayer(nn.Module):
             f = self.linear2( self.dropout( self.activation( self.linear1(f) ) ) )
             x = x + self.dropout2(f)
         """
-        raise NotImplementedError('練習 3：MyTransformerEncoderLayer.forward 尚未完成')
+        x = src
+
+        # 自注意力區塊：先正規化 → 注意力 → 加回原本的 x
+        a = self.norm1(x)
+        a = self.self_attn(a, a, a, attn_mask=src_mask,
+                           key_padding_mask=src_key_padding_mask)[0]
+        x = x + self.dropout1(a)
+
+        # 前饋區塊：先正規化 → 512 → 2048 → 512 → 加回原本的 x
+        f = self.norm2(x)
+        f = self.linear2(self.dropout(self.activation(self.linear1(f))))
+        x = x + self.dropout2(f)
+
+        return x
 
 
 # =============================================================================
@@ -245,7 +331,10 @@ class MyTransformerEncoder(nn.Module):
 
         步驟：依序把資料通過 self.layers 裡的每一層，每一層都傳入同樣的遮罩。
         """
-        raise NotImplementedError('練習 4：MyTransformerEncoder.forward 尚未完成')
+        x = src
+        for layer in self.layers:
+            x = layer(x, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+        return x
 
 
 # =============================================================================
@@ -301,7 +390,26 @@ class MyTransformerDecoderLayer(nn.Module):
           前饋：       f = norm3(x)；f = linear2(dropout(activation(linear1(f))))
                        x = x + dropout3(f)
         """
-        raise NotImplementedError('練習 5：MyTransformerDecoderLayer.forward 尚未完成')
+        x = tgt
+
+        # 遮罩自注意力：每個字母只能看自己和前面的字母
+        a = self.norm1(x)
+        a = self.self_attn(a, a, a, attn_mask=tgt_mask,
+                           key_padding_mask=tgt_key_padding_mask)[0]
+        x = x + self.dropout1(a)
+
+        # 交叉注意力：q 來自文字，k 和 v 來自腦訊號（memory）
+        c = self.norm2(x)
+        c = self.multihead_attn(c, memory, memory, attn_mask=memory_mask,
+                                key_padding_mask=memory_key_padding_mask)[0]
+        x = x + self.dropout2(c)
+
+        # 前饋區塊
+        f = self.norm3(x)
+        f = self.linear2(self.dropout(self.activation(self.linear1(f))))
+        x = x + self.dropout3(f)
+
+        return x
 
 
 # =============================================================================
@@ -325,4 +433,9 @@ class MyTransformerDecoder(nn.Module):
         輸入、輸出同練習 5。
         步驟：依序通過每一層；每一層都用同一個 memory 和同樣的遮罩。
         """
-        raise NotImplementedError('練習 6：MyTransformerDecoder.forward 尚未完成')
+        x = tgt
+        for layer in self.layers:
+            x = layer(x, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
+                      tgt_key_padding_mask=tgt_key_padding_mask,
+                      memory_key_padding_mask=memory_key_padding_mask)
+        return x
