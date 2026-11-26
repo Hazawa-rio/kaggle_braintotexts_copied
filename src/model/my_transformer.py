@@ -290,7 +290,20 @@ class MyTransformerEncoderLayer(nn.Module):
             f = self.linear2( self.dropout( self.activation( self.linear1(f) ) ) )
             x = x + self.dropout2(f)
         """
-        raise NotImplementedError('練習 3：MyTransformerEncoderLayer.forward 尚未完成')
+        x = src
+
+        # 自注意力區塊：先正規化 → 注意力 → 加回原本的 x
+        a = self.norm1(x)
+        a = self.self_attn(a, a, a, attn_mask=src_mask,
+                           key_padding_mask=src_key_padding_mask)[0]
+        x = x + self.dropout1(a)
+
+        # 前饋區塊：先正規化 → 512 → 2048 → 512 → 加回原本的 x
+        f = self.norm2(x)
+        f = self.linear2(self.dropout(self.activation(self.linear1(f))))
+        x = x + self.dropout2(f)
+
+        return x
 
 
 # =============================================================================
@@ -318,7 +331,10 @@ class MyTransformerEncoder(nn.Module):
 
         步驟：依序把資料通過 self.layers 裡的每一層，每一層都傳入同樣的遮罩。
         """
-        raise NotImplementedError('練習 4：MyTransformerEncoder.forward 尚未完成')
+        x = src
+        for layer in self.layers:
+            x = layer(x, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+        return x
 
 
 # =============================================================================
@@ -374,7 +390,26 @@ class MyTransformerDecoderLayer(nn.Module):
           前饋：       f = norm3(x)；f = linear2(dropout(activation(linear1(f))))
                        x = x + dropout3(f)
         """
-        raise NotImplementedError('練習 5：MyTransformerDecoderLayer.forward 尚未完成')
+        x = tgt
+
+        # 遮罩自注意力：每個字母只能看自己和前面的字母
+        a = self.norm1(x)
+        a = self.self_attn(a, a, a, attn_mask=tgt_mask,
+                           key_padding_mask=tgt_key_padding_mask)[0]
+        x = x + self.dropout1(a)
+
+        # 交叉注意力：q 來自文字，k 和 v 來自腦訊號（memory）
+        c = self.norm2(x)
+        c = self.multihead_attn(c, memory, memory, attn_mask=memory_mask,
+                                key_padding_mask=memory_key_padding_mask)[0]
+        x = x + self.dropout2(c)
+
+        # 前饋區塊
+        f = self.norm3(x)
+        f = self.linear2(self.dropout(self.activation(self.linear1(f))))
+        x = x + self.dropout3(f)
+
+        return x
 
 
 # =============================================================================
@@ -398,4 +433,9 @@ class MyTransformerDecoder(nn.Module):
         輸入、輸出同練習 5。
         步驟：依序通過每一層；每一層都用同一個 memory 和同樣的遮罩。
         """
-        raise NotImplementedError('練習 6：MyTransformerDecoder.forward 尚未完成')
+        x = tgt
+        for layer in self.layers:
+            x = layer(x, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
+                      tgt_key_padding_mask=tgt_key_padding_mask,
+                      memory_key_padding_mask=memory_key_padding_mask)
+        return x
